@@ -1,7 +1,7 @@
 FROM debian:buster as builder
 
 # intall gcc and supporting packages
-RUN apt-get update && apt-get install -yq make gcc gettext bison libtool automake pkg-config
+RUN apt-get update && apt-get install -yq make gcc gettext autopoint bison libtool automake pkg-config
 
 WORKDIR /code
 
