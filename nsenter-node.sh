@@ -26,6 +26,11 @@ kubectl run ${podName:?} --restart=Never -it --rm --image overriden --overrides 
         "tty": true,
         "securityContext": {
           "privileged": true
+        },
+        "resources": {
+          "requests": {
+            "cpu": "10m"
+          }
         }
       }
     ]
