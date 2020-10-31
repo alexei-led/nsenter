@@ -1,0 +1,52 @@
+name: DockerHub
+
+on:
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+
+jobs:
+
+  build:
+ 
+    runs-on: ubuntu-18.04
+ 
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Get util-linux version
+      id: get_util_linux
+      run: |
+        version=$(curl --silent https://api.github.com/repos/karelzak/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
+        echo "::debug::get util-linux version ${version}"
+        echo "::set-output name=version::${version}"
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+      
+    - name: Set up Docker buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v1 
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+
+    - name: Build and push Docker image
+      id: docker_build
+      uses: docker/build-push-action@v2
+      with:
+        build-args: UTIL_LINUX_VER=${{ steps.get_util_linux.outputs.version }}
+        platforms: linux/amd64,linux/arm64
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/nsenter:${{ steps.get_util_linux.outputs.version }}
+          ${{ secrets.DOCKER_USERNAME }}/nsenter:latest
+        push: true
+
+    - name: Image digest
+      run: echo ${{ steps.docker_build.outputs.digest }}
+
+ 

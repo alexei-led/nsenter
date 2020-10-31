@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -yq make gcc gettext autopoint bison libto
 WORKDIR /code
 
 # download util-linux sources
-ENV UTIL_LINUX_VER=2.34
+ARG UTIL_LINUX_VER
 ADD https://github.com/karelzak/util-linux/archive/v${UTIL_LINUX_VER}.tar.gz .
 RUN tar -xf v${UTIL_LINUX_VER}.tar.gz && mv util-linux-${UTIL_LINUX_VER} util-linux
 

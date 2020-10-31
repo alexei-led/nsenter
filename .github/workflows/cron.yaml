@@ -1,0 +1,36 @@
+name: Tag on Util-Linux Release
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+    #- cron: "*/5 * * * *" uncomment for debug (every 5 min)
+
+jobs:
+  check_release:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Get latest repository tag
+      id: get_latest_tag
+      run: |
+        tag=$(curl --silent https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs/tags | jq -r '.[-1].ref' | awk -F/ '{print $NF}')
+        echo "::debug::git repository tag ${tag}"
+        echo "::set-output name=tag::${tag}"
+      
+    - name: Get util-linux version
+      id: get_util_linux
+      run: |
+        version=$(curl --silent https://api.github.com/repos/karelzak/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
+        echo "::debug::get util-linux version ${version}"
+        echo "::set-output name=version::${version}"
+
+    - name: Tag repository with latest util-linux version, if needed
+      id: tag_repository
+      if: steps.get_latest_tag.outputs.tag != steps.get_util_linux.outputs.version
+      uses: tvdias/github-tagger@v0.0.1
+      with:
+        repo-token: ${{ secrets.CR_PAT }}
+        tag: ${{steps.get_util_linux.outputs.version}}
+
+        
