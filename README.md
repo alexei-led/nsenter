@@ -12,7 +12,7 @@ Read the official `nsenter` [documentation](http://man7.org/linux/man-pages/man1
 
 ## Continuously Updated with GitHub Actions
 
-The `nsenter` is automatically updated when a new version of [util-linux](https://github.com/karelzak/util-linux) is released.
+The `nsenter` is automatically updated when a new version of [util-linux](https://github.com/util-linux/util-linux) is released.
 
 ## How do I *use* `alexeiled/nsenter`?
 

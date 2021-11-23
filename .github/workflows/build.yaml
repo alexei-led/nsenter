@@ -20,7 +20,7 @@ jobs:
     - name: Get util-linux version
       id: get_util_linux
       run: |
-        version=$(curl --silent https://api.github.com/repos/karelzak/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
+        version=$(curl --silent https://api.github.com/repos/util-linux/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
         echo "::debug::get util-linux version ${version}"
         echo "::set-output name=version::${version}"
 
