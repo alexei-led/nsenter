@@ -1,36 +1,48 @@
-name: Tag on Util-Linux Release
+name: Auto-update on util-linux Release
 
 on:
   schedule:
-    - cron: "0 0 * * *"
-    #- cron: "*/5 * * * *" uncomment for debug (every 5 min)
+    - cron: "0 0 * * 1"  # Weekly on Monday
+  workflow_dispatch:       # Allow manual trigger
+
+permissions:
+  contents: write
 
 jobs:
   check_release:
-
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Get latest repository tag
       id: get_latest_tag
       run: |
-        tag=$(curl --silent https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs/tags | jq -r '.[-1].ref' | awk -F/ '{print $NF}')
-        echo "::debug::git repository tag ${tag}"
-        echo "::set-output name=tag::${tag}"
-      
-    - name: Get util-linux version
+        tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+        echo "Current tag: ${tag}"
+        echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+    - name: Get latest util-linux version
       id: get_util_linux
       run: |
-        version=$(curl --silent https://api.github.com/repos/util-linux/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
-        echo "::debug::get util-linux version ${version}"
-        echo "::set-output name=version::${version}"
+        version=$(curl --silent --fail https://api.github.com/repos/util-linux/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
+        if [ -z "$version" ] || [ "$version" = "null" ]; then
+          echo "Error: could not fetch util-linux version" >&2
+          exit 1
+        fi
+        echo "util-linux version: ${version}"
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-    - name: Tag repository with latest util-linux version, if needed
-      id: tag_repository
+    - name: Create tag if new version available
       if: steps.get_latest_tag.outputs.tag != steps.get_util_linux.outputs.version
-      uses: tvdias/github-tagger@v0.0.1
-      with:
-        repo-token: ${{ secrets.CR_PAT }}
-        tag: ${{steps.get_util_linux.outputs.version}}
-
-        
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        version="${{ steps.get_util_linux.outputs.version }}"
+        echo "New version detected: ${version}"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "${version}" -m "util-linux ${version}"
+        git push origin "${version}"
