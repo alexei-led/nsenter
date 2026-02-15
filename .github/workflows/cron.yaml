@@ -27,7 +27,7 @@ jobs:
     - name: Get latest stable util-linux version
       id: get_util_linux
       run: |
-        version=$(curl --silent --fail https://api.github.com/repos/util-linux/util-linux/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+        version=$(curl --silent --fail "https://api.github.com/repos/util-linux/util-linux/tags?per_page=20" | jq -r '[.[] | .name | select(test("^v[0-9]+\\.[0-9]+(\\.[0-9]+)?$"))][0]' | sed 's/^v//')
         if [ -z "$version" ] || [ "$version" = "null" ]; then
           echo "Error: could not fetch util-linux version" >&2
           exit 1
