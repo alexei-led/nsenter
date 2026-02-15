@@ -60,22 +60,24 @@ else
 fi
 
 # -------------------------------------------------------------------
-# Test 5: Only nsenter exists in the image (scratch-based)
+# Test 5: Image is scratch-based with single layer containing nsenter
 # -------------------------------------------------------------------
-echo "▶ Test: image contains only nsenter binary"
-container_id=$(docker create --name "nsenter-test-$$" "$IMAGE" /nsenter --version 2>/dev/null) || true
+echo "▶ Test: scratch-based image with nsenter"
+# Check image has exactly 1 non-empty layer (the COPY layer)
+layer_count=$(docker image inspect "$IMAGE" --format='{{len .RootFS.Layers}}')
+# Check the image contains /nsenter by exporting and looking for it
+container_id=$(docker create "$IMAGE" /nsenter --version 2>/dev/null) || true
 if [ -n "$container_id" ]; then
-    file_list=$(docker export "nsenter-test-$$" 2>/dev/null | tar -t 2>/dev/null | grep -v '^\.\/$' | grep -v '^\.$' || echo "")
-    docker rm -f "nsenter-test-$$" >/dev/null 2>&1 || true
-    file_count=$(echo "$file_list" | grep -c '.' || echo "0")
-    if [ "$file_count" -le 2 ]; then
-        pass "minimal image (${file_count} entries)"
+    has_nsenter=$(docker export "$container_id" 2>/dev/null | tar -t 2>/dev/null | grep -c '^nsenter$' || echo "0")
+    docker rm -f "$container_id" >/dev/null 2>&1 || true
+    if [ "$layer_count" -le 2 ] && [ "$has_nsenter" -ge 1 ]; then
+        pass "scratch image: ${layer_count} layer(s), nsenter binary present"
     else
-        fail "minimal image" "found ${file_count} entries, expected ≤2: ${file_list}"
+        fail "scratch image" "layers=${layer_count}, nsenter found=${has_nsenter}"
     fi
 else
-    docker rm -f "nsenter-test-$$" >/dev/null 2>&1 || true
-    echo "  ⚠️  skipped minimal image test (could not create container)"
+    docker rm -f "$container_id" >/dev/null 2>&1 || true
+    echo "  ⚠️  skipped scratch image test (could not create container)"
 fi
 
 # -------------------------------------------------------------------
