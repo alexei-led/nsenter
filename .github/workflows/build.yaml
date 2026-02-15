@@ -1,4 +1,4 @@
-name: DockerHub
+name: Build and Push
 
 on:
   push:
@@ -7,46 +7,49 @@ on:
     tags:
       - '*'
 
-jobs:
+permissions:
+  contents: read
+  packages: write
 
+jobs:
   build:
- 
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
- 
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Get util-linux version
       id: get_util_linux
       run: |
         version=$(curl --silent https://api.github.com/repos/util-linux/util-linux/tags | jq -r '.[0].name' | sed -e 's/^v//')
-        echo "::debug::get util-linux version ${version}"
-        echo "::set-output name=version::${version}"
+        echo "util-linux version: ${version}"
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
 
     - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
-      
-    - name: Set up Docker buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
     - name: Login to DockerHub
-      uses: docker/login-action@v1 
+      uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_TOKEN }}
-    
+
     - name: Login to GitHub Container Registry
-      uses: docker/login-action@v1
+      uses: docker/login-action@v3
       with:
         registry: ghcr.io
-        username: ${{ github.repository_owner }}
-        password: ${{ secrets.CR_PAT }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker image
       id: docker_build
-      uses: docker/build-push-action@v2
+      uses: docker/build-push-action@v6
       with:
+        context: .
         build-args: UTIL_LINUX_VER=${{ steps.get_util_linux.outputs.version }}
         platforms: linux/amd64,linux/arm64
         tags: |
@@ -55,8 +58,21 @@ jobs:
           ghcr.io/${{ github.repository_owner }}/nsenter:${{ steps.get_util_linux.outputs.version }}
           ghcr.io/${{ github.repository_owner }}/nsenter:latest
         push: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Image digest
-      run: echo ${{ steps.docker_build.outputs.digest }}
+      run: echo "${{ steps.docker_build.outputs.digest }}"
 
- 
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run integration tests
+      run: |
+        chmod +x tests/test-docker.sh
+        ./tests/test-docker.sh
