@@ -1,38 +1,45 @@
-![DockerHub](https://github.com/alexei-led/nsenter/workflows/DockerHub/badge.svg) ![Docker Pulls](https://img.shields.io/docker/pulls/alexeiled/nsenter.svg?style=popout) [![](https://images.microbadger.com/badges/image/alexeiled/nsenter.svg)](https://microbadger.com/images/alexeiled/nsenter "Get your own image badge on microbadger.com")
+[![CI](https://github.com/alexei-led/nsenter/actions/workflows/ci.yaml/badge.svg)](https://github.com/alexei-led/nsenter/actions/workflows/ci.yaml)
+[![Release](https://github.com/alexei-led/nsenter/actions/workflows/release.yaml/badge.svg)](https://github.com/alexei-led/nsenter/actions/workflows/release.yaml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/alexeiled/nsenter.svg?style=popout)](https://hub.docker.com/r/alexeiled/nsenter)
+[![GHCR](https://img.shields.io/badge/GHCR-nsenter-blue?logo=github)](https://github.com/alexei-led/nsenter/pkgs/container/nsenter)
 
 # nsenter
 
-## Info
+Minimal (`scratch`) Docker image containing a single statically linked `nsenter` binary. Multi-arch: `linux/amd64` and `linux/arm64`.
 
-`alexeiled/nsenter` Docker image is a `scratch` image that contains only one statically linked `nsenter` file.
+## Quick Start
+
+```sh
+# Pull from GitHub Container Registry (recommended)
+docker pull ghcr.io/alexei-led/nsenter
+
+# Or from DockerHub
+docker pull alexeiled/nsenter
+```
 
 ## Usage
 
 Read the official `nsenter` [documentation](http://man7.org/linux/man-pages/man1/nsenter.1.html).
 
-## Continuously Updated with GitHub Actions
-
-The `nsenter` is automatically updated when a new version of [util-linux](https://github.com/util-linux/util-linux) is released.
-
-## How do I *use* `alexeiled/nsenter`?
-
-Enter the container:
+### Enter a Docker container
 
 ```sh
 # enter all namespaces of selected container
-docker run -it --rm --privileged --pid=container:<container_name_or_ID> alexeiled/nsenter --all --target 1 -- su -
+docker run -it --rm --privileged --pid=container:<container_name_or_ID> \
+  ghcr.io/alexei-led/nsenter --all --target 1 -- su -
 ```
 
-Enter the Docker host:
+### Enter the Docker host
 
 ```sh
 # enter all namespaces of Docker host
-docker run -it --rm --privileged --pid=host alexeiled/nsenter --all --target 1 -- su -
+docker run -it --rm --privileged --pid=host \
+  ghcr.io/alexei-led/nsenter --all --target 1 -- su -
 ```
 
-## Enter Kubernetes node
+### Enter a Kubernetes node
 
-Use helper script `nsenter-node.sh` to enter into any Kubernetes node by creating a new pod tolerated to the specified node.
+Use the helper script `nsenter-node.sh` to enter into any Kubernetes node by creating a temporary privileged pod:
 
 ```sh
 # list Kubernetes nodes
@@ -47,3 +54,19 @@ ip-192-168-171-140.us-west-2.compute.internal   Ready    <none>   5d10h   v1.13.
 
 [root@ip-192-168-171-140 ~]#
 ```
+
+## Automatically Updated
+
+The `nsenter` image is automatically rebuilt when a new version of [util-linux](https://github.com/util-linux/util-linux) is released. A weekly GitHub Actions cron job checks for new releases and triggers a build.
+
+## CI/CD
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| **CI** | PR / push to `master` | Lint (hadolint, shellcheck) → Build → Integration tests |
+| **Release** | Tag push | Multi-arch build → Push to GHCR + DockerHub → GitHub Release |
+| **Cron** | Weekly (Monday) | Check for new util-linux version → Create tag → Trigger release |
+
+## License
+
+[MIT](LICENSE)
