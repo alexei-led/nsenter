@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release:
+    name: Build & Push Multi-arch
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        version="${GITHUB_REF_NAME}"
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "Releasing version: ${version}"
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push multi-arch image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        build-args: UTIL_LINUX_VER=${{ steps.version.outputs.version }}
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/nsenter:${{ steps.version.outputs.version }}
+          ${{ secrets.DOCKER_USERNAME }}/nsenter:latest
+          ghcr.io/${{ github.repository_owner }}/nsenter:${{ steps.version.outputs.version }}
+          ghcr.io/${{ github.repository_owner }}/nsenter:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: "nsenter ${{ steps.version.outputs.version }}"
+        body: |
+          Built from [util-linux ${{ steps.version.outputs.version }}](https://github.com/util-linux/util-linux/releases/tag/v${{ steps.version.outputs.version }})
+
+          ### Docker images
+          ```bash
+          docker pull alexeiled/nsenter:${{ steps.version.outputs.version }}
+          docker pull ghcr.io/alexei-led/nsenter:${{ steps.version.outputs.version }}
+          ```
+        generate_release_notes: true
+
+    - name: Verify published images
+      run: |
+        echo "Verifying DockerHub..."
+        docker pull alexeiled/nsenter:${{ steps.version.outputs.version }}
+        docker run --rm alexeiled/nsenter:${{ steps.version.outputs.version }} --version
+
+        echo "Verifying GHCR..."
+        docker pull ghcr.io/alexei-led/nsenter:${{ steps.version.outputs.version }}
+        docker run --rm ghcr.io/alexei-led/nsenter:${{ steps.version.outputs.version }} --version
+
+        echo "✅ Both registries verified"
