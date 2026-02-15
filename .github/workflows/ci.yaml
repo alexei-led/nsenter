@@ -32,10 +32,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get latest util-linux version
+      - name: Get latest stable util-linux version
         id: util_linux
         run: |
-          version=$(curl --silent --fail https://api.github.com/repos/util-linux/util-linux/tags | jq -r '.[0].name' | sed 's/^v//')
+          version=$(curl --silent --fail https://api.github.com/repos/util-linux/util-linux/releases/latest | jq -r '.tag_name' | sed 's/^v//')
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "util-linux version: ${version}"
 

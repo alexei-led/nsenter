@@ -4,7 +4,7 @@ FROM debian:bookworm-slim AS builder
 # Install build dependencies
 RUN apt-get update && \
     apt-get install -yq --no-install-recommends \
-        make gcc gettext autopoint bison libtool automake pkg-config ca-certificates && \
+        make gcc gettext autopoint bison libtool automake pkg-config ca-certificates flex && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /code
