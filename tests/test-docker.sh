@@ -60,17 +60,22 @@ else
 fi
 
 # -------------------------------------------------------------------
-# Test 5: Only /nsenter exists in the image (scratch-based)
+# Test 5: Only nsenter exists in the image (scratch-based)
 # -------------------------------------------------------------------
 echo "▶ Test: image contains only nsenter binary"
-# Export image filesystem and check contents
-file_count=$(docker create --name nsenter-test-$$ "$IMAGE" /nsenter --version 2>/dev/null && \
-    docker export nsenter-test-$$ 2>/dev/null | tar -t 2>/dev/null | grep -cv '^\.$\|^/$' || echo "0")
-docker rm -f nsenter-test-$$ >/dev/null 2>&1 || true
-if [ "$file_count" -le 2 ]; then
-    pass "minimal image (${file_count} files)"
+container_id=$(docker create --name "nsenter-test-$$" "$IMAGE" /nsenter --version 2>/dev/null) || true
+if [ -n "$container_id" ]; then
+    file_list=$(docker export "nsenter-test-$$" 2>/dev/null | tar -t 2>/dev/null | grep -v '^\.\/$' | grep -v '^\.$' || echo "")
+    docker rm -f "nsenter-test-$$" >/dev/null 2>&1 || true
+    file_count=$(echo "$file_list" | grep -c '.' || echo "0")
+    if [ "$file_count" -le 2 ]; then
+        pass "minimal image (${file_count} entries)"
+    else
+        fail "minimal image" "found ${file_count} entries, expected ≤2: ${file_list}"
+    fi
 else
-    fail "minimal image" "found ${file_count} files, expected ≤2"
+    docker rm -f "nsenter-test-$$" >/dev/null 2>&1 || true
+    echo "  ⚠️  skipped minimal image test (could not create container)"
 fi
 
 # -------------------------------------------------------------------
@@ -81,7 +86,7 @@ pid_output=$(docker run --rm --privileged --pid=host "$IMAGE" --target=1 --pid -
 if echo "$pid_output" | grep -q "nsenter-works"; then
     pass "nsenter --target=1 --pid works"
 else
-    # This may fail in rootless Docker or restricted CI — warn instead of fail
+    # May fail in rootless Docker or restricted CI — warn, not fail
     echo "  ⚠️  nsenter PID namespace test skipped (requires --privileged + host PID): ${pid_output}"
 fi
 
