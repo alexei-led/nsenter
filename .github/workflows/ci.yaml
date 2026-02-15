@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
+
+      - name: Lint shell scripts
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: .
+          severity: warning
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest stable util-linux version
+        id: util_linux
+        run: |
+          version=$(curl --silent --fail "https://api.github.com/repos/util-linux/util-linux/tags?per_page=20" | jq -r '[.[] | .name | select(test("^v[0-9]+\\.[0-9]+(\\.[0-9]+)?$"))][0]' | sed 's/^v//')
+          if [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "Error: could not fetch util-linux version" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "util-linux version: ${version}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          build-args: UTIL_LINUX_VER=${{ steps.util_linux.outputs.version }}
+          load: true
+          tags: alexeiled/nsenter:test
+
+      - name: Run integration tests
+        run: |
+          chmod +x tests/test-docker.sh
+          TEST_IMAGE=alexeiled/nsenter:test ./tests/test-docker.sh
