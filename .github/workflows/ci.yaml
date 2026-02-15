@@ -49,8 +49,6 @@ jobs:
           build-args: UTIL_LINUX_VER=${{ steps.util_linux.outputs.version }}
           load: true
           tags: alexeiled/nsenter:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Run integration tests
         run: |
