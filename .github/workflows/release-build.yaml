@@ -1,14 +1,12 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - '*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to release (tag name)'
         required: true
+        type: string
 
 permissions:
   contents: write
@@ -24,17 +22,13 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            version="${{ inputs.version }}"
-          else
-            version="${GITHUB_REF_NAME}"
-          fi
+          version="${{ inputs.version }}"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Releasing version: ${version}"
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.version.outputs.version }}
+          ref: ${{ inputs.version }}
           fetch-depth: 0
 
       - name: Set up QEMU
