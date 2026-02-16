@@ -91,7 +91,8 @@ jobs:
       - name: Inspect image
         id: inspect
         run: |
-          digest="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/nsenter:${{ github.ref_name }}" --format '{{.Manifest.Digest}}')"
+          docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/nsenter:${{ github.ref_name }}"
+          digest="$(docker buildx imagetools inspect --raw "ghcr.io/${{ github.repository_owner }}/nsenter:${{ github.ref_name }}" | sha256sum | awk '{print "sha256:"$1}')"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
   test:
