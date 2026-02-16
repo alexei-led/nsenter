@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - '*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (tag name)'
+        required: true
 
 permissions:
   contents: write
@@ -16,16 +21,21 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       digest: ${{ steps.docker_build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get version from tag
+      - name: Determine version
         id: version
         run: |
-          version="${GITHUB_REF_NAME}"
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME}"
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Releasing version: ${version}"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.version.outputs.version }}
+          fetch-depth: 0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -58,7 +68,6 @@ jobs:
             tags="${tags},${{ secrets.DOCKER_USERNAME }}/nsenter:latest"
           fi
           echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-          echo "Image tags: ${tags}"
 
       - name: Build and push multi-arch image
         id: docker_build
@@ -82,7 +91,7 @@ jobs:
       - name: Run integration tests against released image
         run: |
           chmod +x tests/test-docker.sh
-          TEST_IMAGE=ghcr.io/${{ github.repository_owner }}/nsenter:latest ./tests/test-docker.sh
+          TEST_IMAGE=ghcr.io/${{ github.repository_owner }}/nsenter:${{ needs.build.outputs.version }} ./tests/test-docker.sh
 
   github-release:
     runs-on: ubuntu-latest
@@ -95,12 +104,12 @@ jobs:
       - name: Get previous tag
         id: prev_tag
         run: |
-          prev=$(git tag --sort=-creatordate | sed -n '2p' || echo "")
+          prev=$(git tag --sort=-v:refname | sed -n '2p' || echo "")
           echo "prev_tag=${prev}" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
         run: |
-          version="${GITHUB_REF_NAME}"
+          version="${{ needs.build.outputs.version }}"
           prev="${{ steps.prev_tag.outputs.prev_tag }}"
           digest="${{ needs.build.outputs.digest }}"
 
@@ -114,7 +123,9 @@ jobs:
             echo "| Registry | Image | Pull Command |"
             echo "|----------|-------|-------------|"
             echo "| **GHCR** | \`ghcr.io/alexei-led/nsenter:${version}\` | \`docker pull ghcr.io/alexei-led/nsenter:${version}\` |"
-            echo "| DockerHub | \`alexeiled/nsenter:${version}\` | \`docker pull alexeiled/nsenter:${version}\` |"
+            if [ "${{ vars.DOCKERHUB_ENABLED }}" = "true" ]; then
+              echo "| DockerHub | \`alexeiled/nsenter:${version}\` | \`docker pull alexeiled/nsenter:${version}\` |"
+            fi
             echo ""
             echo "### Platforms"
             echo "- \`linux/amd64\`"
@@ -135,5 +146,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.build.outputs.version }}
           body_path: /tmp/release-notes.md
           generate_release_notes: false
