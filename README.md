@@ -1,27 +1,29 @@
 # nsenter
 
 [![CI](https://github.com/alexei-led/nsenter/actions/workflows/ci.yaml/badge.svg)](https://github.com/alexei-led/nsenter/actions/workflows/ci.yaml)
-[![Release](https://github.com/alexei-led/nsenter/actions/workflows/release.yaml/badge.svg)](https://github.com/alexei-led/nsenter/actions/workflows/release.yaml)
-![Docker Pulls](https://img.shields.io/docker/pulls/alexeiled/nsenter.svg?style=popout)
+[![Build and Release](https://github.com/alexei-led/nsenter/actions/workflows/build-release.yaml/badge.svg)](https://github.com/alexei-led/nsenter/actions/workflows/build-release.yaml)
 
 ## Overview
 
 Minimal `scratch`-based Docker image (~400KB) containing a single statically linked `nsenter` binary, built from [util-linux](https://github.com/util-linux/util-linux) sources.
 
-Automatically updated weekly when new util-linux versions are released.
+## Docker Image
 
-## Docker Images
+```bash
+docker pull ghcr.io/alexei-led/nsenter
+```
 
-| Registry | Image | Pull Command |
-|----------|-------|-------------|
-| **GHCR** (default) | `ghcr.io/alexei-led/nsenter` | `docker pull ghcr.io/alexei-led/nsenter` |
-| DockerHub | `alexeiled/nsenter` | `docker pull alexeiled/nsenter` |
+Multi-arch: `linux/amd64` and `linux/arm64` (built natively, no QEMU emulation).
 
-Both registries provide multi-arch images for `linux/amd64` and `linux/arm64`.
+> **Note:** Docker Hub images (`alexeiled/nsenter`) are deprecated and no longer updated.
+> Docker Hub has introduced increasingly restrictive policies for open-source projects —
+> including rate limits, image retention limits for free accounts, and removal of
+> free Team organizations. We've moved exclusively to GitHub Container Registry (GHCR),
+> which offers unlimited pulls for public packages with no retention restrictions.
 
 ## Usage
 
-Read the official `nsenter` [documentation](http://man7.org/linux/man-pages/man1/nsenter.1.html).
+Read the official `nsenter` [man page](http://man7.org/linux/man-pages/man1/nsenter.1.html).
 
 ### Enter a Docker container's namespaces
 
@@ -62,7 +64,6 @@ The script creates a temporary pod with `hostPID`, `hostNetwork`, and toleration
 ## Building
 
 ```sh
-# Build with a specific util-linux version
 docker build --build-arg UTIL_LINUX_VER=2.41.3 -t nsenter .
 ```
 
@@ -70,11 +71,11 @@ docker build --build-arg UTIL_LINUX_VER=2.41.3 -t nsenter .
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `ci.yaml` | Push / PR | Hadolint + ShellCheck + build + integration tests |
-| `release.yaml` | Tag push | Multi-arch build → GHCR + DockerHub + GitHub Release |
-| `cron.yaml` | Weekly (Monday) | Check for new util-linux → auto-tag → triggers release |
+| **CI** | Push / PR | Hadolint + ShellCheck + build + integration tests |
+| **Build and Release** | Tag push | Native multi-arch build → GHCR + GitHub Release |
+
+Releases are triggered by pushing a version tag (e.g., `2.41.3`) matching the upstream [util-linux](https://github.com/util-linux/util-linux/releases) version.
 
 ## License
 
-[MIT](LICENSE)
-
+[GPL-2.0](LICENSE)
