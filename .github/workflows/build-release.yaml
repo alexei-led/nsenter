@@ -82,7 +82,7 @@ jobs:
           push: true
 
       - name: Image digest
-        run: echo "Digest: ${{ steps.docker_build.outputs.digest }}"
+        run: echo "Digest:" "${{ steps.docker_build.outputs.digest }}"
 
   test:
     runs-on: ubuntu-latest
