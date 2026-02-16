@@ -1,6 +1,8 @@
 name: Build and Release
 
 on:
+  repository_dispatch:
+    types: [release]
   workflow_dispatch:
     inputs:
       version:
@@ -22,13 +24,19 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          version="${{ inputs.version }}"
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          elif [ -n "${{ github.event.client_payload.version }}" ]; then
+            version="${{ github.event.client_payload.version }}"
+          else
+            echo "No version specified" && exit 1
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Releasing version: ${version}"
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.version }}
+          ref: ${{ steps.version.outputs.version }}
           fetch-depth: 0
 
       - name: Set up QEMU
