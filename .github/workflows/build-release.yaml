@@ -11,21 +11,16 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      digest: ${{ steps.docker_build.outputs.digest }}
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
-      - name: Get version from tag
-        id: version
-        run: |
-          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          echo "Releasing version: ${GITHUB_REF_NAME}"
-
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -37,53 +32,82 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to DockerHub
-        if: vars.DOCKERHUB_ENABLED == 'true'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_TOKEN }}
-
-      - name: Determine image tags
-        id: tags
-        run: |
-          version="${{ steps.version.outputs.version }}"
-          tags="ghcr.io/${{ github.repository_owner }}/nsenter:${version}"
-          tags="${tags},ghcr.io/${{ github.repository_owner }}/nsenter:latest"
-          if [ "${{ vars.DOCKERHUB_ENABLED }}" = "true" ] && [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
-            tags="${tags},${{ secrets.DOCKER_USERNAME }}/nsenter:${version}"
-            tags="${tags},${{ secrets.DOCKER_USERNAME }}/nsenter:latest"
-          fi
-          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push multi-arch image
-        id: docker_build
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          build-args: UTIL_LINUX_VER=${{ steps.version.outputs.version }}
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.tags.outputs.tags }}
-          push: true
+          build-args: UTIL_LINUX_VER=${{ github.ref_name }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/nsenter,push-by-digest=true,name-canonical=true,push=true
 
-      - name: Image digest
+      - name: Export digest
         run: |
-          echo "Digest: ${{ steps.docker_build.outputs.digest }}"
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.runner }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-24.04
+    needs: build
+    outputs:
+      version: ${{ github.ref_name }}
+      digest: ${{ steps.inspect.outputs.digest }}
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          printf 'ghcr.io/${{ github.repository_owner }}/nsenter@sha256:%s\n' * > /tmp/sources.txt
+          docker buildx imagetools create \
+            -t "ghcr.io/${{ github.repository_owner }}/nsenter:${{ github.ref_name }}" \
+            -t "ghcr.io/${{ github.repository_owner }}/nsenter:latest" \
+            $(cat /tmp/sources.txt)
+
+      - name: Inspect image
+        id: inspect
+        run: |
+          digest="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/nsenter:${{ github.ref_name }}" --format '{{.Manifest.Digest}}')"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
   test:
-    runs-on: ubuntu-latest
-    needs: build
+    runs-on: ubuntu-24.04
+    needs: merge
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run integration tests against released image
+      - name: Run integration tests
         run: |
           chmod +x tests/test-docker.sh
-          TEST_IMAGE="ghcr.io/${{ github.repository_owner }}/nsenter:${{ needs.build.outputs.version }}" ./tests/test-docker.sh
+          TEST_IMAGE="ghcr.io/${{ github.repository_owner }}/nsenter:${{ needs.merge.outputs.version }}" ./tests/test-docker.sh
 
   github-release:
-    runs-on: ubuntu-latest
-    needs: [build, test]
+    runs-on: ubuntu-24.04
+    needs: [merge, test]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,26 +120,25 @@ jobs:
           echo "prev_tag=${prev}" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
-        id: notes
         run: |
-          version="${{ needs.build.outputs.version }}"
+          version="${{ needs.merge.outputs.version }}"
           prev="${{ steps.prev_tag.outputs.prev_tag }}"
-          digest="${{ needs.build.outputs.digest }}"
+          digest="${{ needs.merge.outputs.digest }}"
 
           {
             echo "## nsenter ${version}"
             echo ""
             echo "Static \`nsenter\` binary built from [util-linux ${version}](https://github.com/util-linux/util-linux/releases/tag/v${version})."
             echo ""
-            echo "### Docker Images"
+            echo "### Docker Image"
             echo ""
-            echo "| Registry | Image | Pull Command |"
-            echo "|----------|-------|-------------|"
-            echo "| **GHCR** | \`ghcr.io/alexei-led/nsenter:${version}\` | \`docker pull ghcr.io/alexei-led/nsenter:${version}\` |"
+            echo "\`\`\`bash"
+            echo "docker pull ghcr.io/alexei-led/nsenter:${version}"
+            echo "\`\`\`"
             echo ""
             echo "### Platforms"
-            echo "- \`linux/amd64\`"
-            echo "- \`linux/arm64\`"
+            echo "- \`linux/amd64\` (native runner)"
+            echo "- \`linux/arm64\` (native runner)"
             echo ""
             echo "### Digest"
             echo "\`${digest}\`"
