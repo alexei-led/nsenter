@@ -1,0 +1,22 @@
+# nsenter
+
+> Minimal Docker image with nsenter for entering container and host namespaces.
+
+A tiny Docker image (~600KB) based on scratch with a static nsenter binary built from util-linux sources. Used for debugging containers by entering their Linux namespaces (PID, network, mount, etc.) — especially useful in Kubernetes where you need to debug node-level issues from a pod.
+
+## Docs
+
+- [README](https://github.com/alexei-led/nsenter/blob/master/README.md): Usage, examples, Kubernetes patterns
+
+## Usage
+
+- **Docker:** `docker run -it --rm --privileged --pid=host ghcr.io/alexei-led/nsenter`
+- **Kubernetes:** `kubectl run nsenter --image=ghcr.io/alexei-led/nsenter --restart=Never --privileged --overrides=...`
+- **Purpose:** Enter host namespaces from container for debugging network, processes, mounts
+- **Base image:** scratch (minimal attack surface, single static binary)
+- **Key binary:** `/nsenter` built statically from util-linux sources
+
+## References
+
+- https://llmstxt.org/
+- https://github.com/util-linux/util-linux

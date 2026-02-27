@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -eu
 
 # nsenter-node.sh — Enter a Kubernetes node's namespaces via a privileged pod.
